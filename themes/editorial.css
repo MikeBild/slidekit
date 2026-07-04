@@ -70,3 +70,20 @@ html.dark {
 .slidev-layout svg {
   vertical-align: -0.18em;
 }
+
+/* ---- Mermaid diagrams: never overflow the slide -------------- */
+/* Mermaid renders client-side into <div class="mermaid"><svg …> at native
+   size, which easily exceeds the slide canvas (~980×552). Cap the SVG to
+   the slide and keep the aspect ratio; a per-block {scale: …} option in
+   the deck still applies on top of this safety net. !important because
+   mermaid writes inline max-width styles onto the SVG. */
+.slidev-layout .mermaid {
+  display: flex;
+  justify-content: center;
+}
+.slidev-layout .mermaid svg {
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 330px !important;
+}

@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-07-04
+
+### Fixed
+
+- **Mermaid diagrams no longer overflow the slide**: both bundled themes
+  (`neutral`, `editorial`) now cap client-rendered Mermaid SVGs to the slide
+  canvas (`max-width: 100%`, `max-height: 330px`, centered) while preserving
+  the aspect ratio. Native-size diagrams previously blew past the ~980×552
+  canvas. A per-block ` ```mermaid {scale: …} ` option still applies on top.
+
 ## [1.2.1] - 2026-07-04
 
 ### Changed
