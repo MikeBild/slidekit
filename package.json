@@ -51,7 +51,7 @@
     "build:binary": "bash build-binary.sh"
   },
   "dependencies": {
-    "@iconify-json/material-symbols": "^1.2.81",
+    "@iconify-json/material-symbols": "^1.2.82",
     "@slidev/cli": "^52.16.0",
     "@slidev/theme-default": "^0.25.0",
     "@slidev/theme-seriph": "^0.25.0",
