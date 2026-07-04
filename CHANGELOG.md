@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-07-04
+
+### Changed
+
+- CI/CD maintenance: GitHub Actions majors updated via Dependabot
+  (`setup-node` v6, `upload-artifact` v7, `download-artifact` v8,
+  `action-gh-release` v3, `codeql-action` v4) and
+  `@iconify-json/material-symbols` patch bump. No functional changes to the
+  service.
+
 ## [1.2.0] - 2026-07-02
 
 ### Added
@@ -104,7 +114,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Unit test suite (`node:test`) and a gated integration test; GitHub Actions CI
   (lint + tests + integration).
 
-[Unreleased]: https://github.com/mikebild/slidekit/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/mikebild/slidekit/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/mikebild/slidekit/releases/tag/v1.2.1
 [1.2.0]: https://github.com/mikebild/slidekit/releases/tag/v1.2.0
 [1.1.0]: https://github.com/mikebild/slidekit/releases/tag/v1.1.0
 [1.0.3]: https://github.com/mikebild/slidekit/releases/tag/v1.0.3
