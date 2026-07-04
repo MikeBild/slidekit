@@ -1,0 +1,17 @@
+node_modules
+dist
+payload.tgz
+.node-bin
+.jobs
+.deck-*.md
+.git
+.github
+test
+examples
+docs/*.md
+*.md
+!README.md
+.env
+.env.*
+bin/cache-key.ts
+.DS_Store

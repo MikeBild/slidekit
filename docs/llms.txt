@@ -1,0 +1,42 @@
+# slidekit Documentation
+
+A robots.txt-style index of the slidekit documentation for LLMs. slidekit is an
+HTTP service that turns Markdown into **one fully self-contained Slidev HTML
+deck** (CSS, JS and fonts inlined; presenter mode; works offline). Each entry
+below has a title, path, and one-line summary. For the complete documentation
+inlined into a single file, see [docs/llms-full.txt](docs/llms-full.txt).
+
+> Default local base URL: http://localhost:4030 — OpenAPI 3.1 spec at `/openapi.json`.
+> To render: `POST /render` with the Markdown as the
+> body (`content-type: text/markdown`) or a `multipart/form-data` file field; when
+> `SLIDEKIT_API_KEYS` is set, send `Authorization: Bearer <key>`.
+
+## Start here
+
+- [README](README.md): What slidekit is, quickstart (serve / curl / Docker / single binary), the endpoint + `/render` query-param tables, and links to everything else.
+- [Example deck](examples/demo.md): A generic Slidev deck exercising cover, two-cols, `v-clicks`, Mermaid and a code fence with the bundled themes.
+- [Examples README](examples/README.md): Sample input decks — inputs to the service, never bundled — with preview and render commands.
+
+## API & usage
+
+- Endpoints: `GET /` (JSON service descriptor), `POST /render` (Markdown → one self-contained HTML deck), `GET /themes`, `GET /health` (liveness), `GET /ready` (readiness; 503 while draining), `GET /metrics` (Prometheus), `GET /jobs/{id}` (async job status), `GET /jobs/{id}/result` (async job result deck), `GET /openapi.json`, `GET /llms.txt`, `GET /llms-full.txt`.
+- `POST /render` query params (all optional): `theme` (CSS overlay; see `/themes`), `title`, `author`, `tags`, `description`, `image`, `imageAlt`, `url` (canonical), `siteName`, `locale`, `lang`, `robots`, `themeColor`, `twitterSite`, `twitterCreator`, `favicon` (emoji/data: URI, inlined), `download=1`, `async=1` (→ 202 + `/jobs/{id}`), `callback` (async webhook; host must be in `SLIDEKIT_WEBHOOK_ALLOW`). Body: raw `text/markdown`, or `multipart/form-data` file field (`file`/`markdown`/`md`). Responses carry a strong `ETag` (→ `304` on `If-None-Match`); identical renders are cached; responses are gzip-compressed on `Accept-Encoding`.
+- OpenAPI 3.1 is generated from a route registry, with the `theme` enum and auth scheme injected dynamically — fetch the live spec at `/openapi.json`.
+
+## Theming & icons
+
+- [Theming & Icons](docs/THEMING-AND-ICONS.md): The two-layer model (a fixed Slidev base theme + a per-request CSS overlay selected via `?theme=`), design tokens, light/dark, writing a custom theme, and bundled icons (Material Symbols, Carbon, Phosphor). Note: a deck's `theme:` frontmatter is normalized to the base theme, so choose the look via `?theme=`.
+
+## Operating & deployment
+
+- [Configuration](docs/CONFIGURATION.md): Every environment variable (binding, auth, rate limit, build caps, themes) with defaults — 12-factor, optional `.env`.
+- [Deployment](docs/DEPLOYMENT.md): Run as a Node service, single self-contained binary, or Docker; production checklist, `/health` + `/ready` probes, graceful shutdown, structured stdout logging.
+- [Security](SECURITY.md): Trust model — `/render` runs a real Slidev/Vite build, so uploading Markdown is equivalent to code execution; deploy behind auth and OS isolation. Built-in mitigations and their limits.
+- [.env.example](.env.example): Annotated template of every configuration variable.
+
+## Development
+
+- [Architecture](docs/ARCHITECTURE.md): Request lifecycle, the `src/` module map, OpenAPI-from-route-registry, and how the self-contained binary is packaged.
+- [Contributing](CONTRIBUTING.md): Dev setup, guidelines (server code uses only Node built-ins, tests, the self-contained-output guarantee), and the release process.
+- [Code of Conduct](CODE_OF_CONDUCT.md): Contributor Covenant v2.1.
+- [Changelog](CHANGELOG.md): Notable changes per release (Keep a Changelog / SemVer).

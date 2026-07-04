@@ -1,0 +1,16 @@
+# generated
+fonts.css
+dist/
+coverage/
+package-lock.json
+
+# LLM docs are drift-guarded against the implementation — keep byte-stable
+docs/llms.txt
+docs/llms-full.txt
+
+# Slidev decks use `---` slide separators that Markdown formatters mangle
+examples/*.md
+test/fixtures/*.md
+
+# Bun-only launcher sources, compiled by build-binary.sh
+bin/

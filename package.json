@@ -1,0 +1,67 @@
+{
+  "name": "slidekit",
+  "version": "1.2.0",
+  "description": "HTTP service that turns Markdown into one fully self-contained Slidev HTML deck (CSS/JS/fonts inline, presenter mode, offline).",
+  "type": "module",
+  "license": "MIT",
+  "author": "Mike Bild <mike@mikebild.com>",
+  "homepage": "https://github.com/mikebild/slidekit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikebild/slidekit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mikebild/slidekit/issues"
+  },
+  "keywords": [
+    "slidev",
+    "slides",
+    "markdown",
+    "presentation",
+    "self-contained",
+    "html",
+    "http-service"
+  ],
+  "engines": {
+    "node": ">=20.12"
+  },
+  "bin": {
+    "slidekit": "server.mjs"
+  },
+  "files": [
+    "server.mjs",
+    "src",
+    "themes",
+    "docs",
+    "style.css",
+    "fonts.css",
+    "vite.config.ts",
+    "examples"
+  ],
+  "scripts": {
+    "dev": "slidev examples/demo.md --open",
+    "start": "node server.mjs",
+    "serve": "node server.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test test/unit/*.test.mjs",
+    "test:coverage": "c8 --include 'src/**' --include server.mjs node --test test/unit/*.test.mjs",
+    "test:integration": "RUN_INTEGRATION=1 node --test test/integration/*.test.mjs",
+    "build:binary": "bash build-binary.sh"
+  },
+  "dependencies": {
+    "@iconify-json/material-symbols": "^1.2.81",
+    "@slidev/cli": "^52.16.0",
+    "@slidev/theme-default": "^0.25.0",
+    "@slidev/theme-seriph": "^0.25.0",
+    "vite-plugin-singlefile": "^2.3.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "c8": "^11.0.0",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.4"
+  }
+}

@@ -1,0 +1,426 @@
+# slidekit — Full Documentation for LLMs
+
+This single file contains the complete slidekit documentation, inlined for LLM
+consumption. A concise index is in `docs/llms.txt`.
+
+slidekit is an HTTP service (and single self-contained binary) that turns Markdown
+into **one fully self-contained Slidev HTML deck**: all CSS, JavaScript and fonts
+are inlined, there are zero external requests, it works offline from `file://`, and
+it includes Slidev presenter mode. It renders *exactly* like Slidev because it runs
+Slidev's real build.
+
+- Source: https://github.com/mikebild/slidekit
+- License: MIT
+
+---
+
+## 1. Core concept
+
+You POST Markdown to `/render`; slidekit runs a real `slidev build`, inlines
+everything into a single `index.html`, strips any external references, injects
+metadata, and returns that one file. The output is ~2–6 MB and needs no server to
+view — open it in a browser, present with `…#/presenter/1`.
+
+```
+Markdown ──POST /render──▶ slidev build ──▶ inline CSS/JS/fonts ──▶ one .html
+```
+
+What it is NOT: it is not a hosting platform and it does not store decks. It
+transforms input to output. Themes, fonts and config are bundled; your Markdown is
+the only input.
+
+---
+
+## 2. HTTP API
+
+Base URL (self-host): `http://localhost:4030`.
+
+### Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET  | `/`               | JSON service descriptor (links to render, openapi, llms) |
+| POST | `/render`         | Markdown → one self-contained HTML deck |
+| GET  | `/themes`         | JSON array of available CSS-overlay theme names |
+| GET  | `/openapi.json`   | Generated OpenAPI 3.1 spec |
+| GET  | `/health`         | Liveness — `200 "ok"` while the process is up |
+| GET  | `/ready`          | Readiness — `200 {"status":"ready"}`; `503 {"status":"draining"}` during shutdown |
+| GET  | `/metrics`        | Prometheus metrics (requests, builds, durations, in-flight, cache) |
+| GET  | `/jobs/{id}`      | Async job status (queued/running/done/error) |
+| GET  | `/jobs/{id}/result` | Async job result — the self-contained HTML deck once done |
+| GET  | `/llms.txt`       | This documentation index (llmstxt.org format) |
+| GET  | `/llms-full.txt`  | The full documentation inlined in one file |
+
+### POST /render
+
+- **Body**: the raw Markdown with `Content-Type: text/markdown`, OR
+  `multipart/form-data` with a file field named `file`, `markdown`, or `md`.
+- **Auth**: when the server has `SLIDEKIT_API_KEYS` configured, send the key as
+  `Authorization: Bearer <key>` or `X-API-Key: <key>`. If no keys are configured,
+  the endpoint is open (not recommended in production — see Security).
+- **Query parameters** (all optional):
+
+| Param | Effect |
+|---|---|
+| `theme` | CSS overlay name (see `/themes`); unknown → server default (`neutral`) |
+| `title` | sets `<title>` + `og:title`/`twitter:title` + the download filename |
+| `author` | `meta[name=author]` |
+| `tags` | comma-separated → `meta[name=keywords]` |
+| `description` | meta description + OpenGraph/Twitter description |
+| `image` | social image URL → `og:image`/`twitter:image` |
+| `imageAlt` | alt text → `og:image:alt`/`twitter:image:alt` (only with `image`) |
+| `url` | canonical URL → `og:url` + `<link rel=canonical>` |
+| `siteName` | `og:site_name` |
+| `locale` | `og:locale` (e.g. `en_US`) |
+| `lang` | sets `<html lang>` (a11y/SEO) |
+| `robots` | `meta[name=robots]` (e.g. `noindex`) |
+| `themeColor` | `meta[name=theme-color]` (browser UI tint) |
+| `twitterSite` / `twitterCreator` | `twitter:site` / `twitter:creator` (@handles) |
+| `favicon` | inline favicon: an emoji/short text (rendered to SVG) or a `data:` URI — stays offline |
+| `download=1` | respond with `Content-Disposition: attachment` |
+| `async=1` | enqueue the build; respond `202` + a job to poll at `/jobs/{id}` |
+| `callback` | async only: `POST {id,status}` to this URL on completion (host must be allowlisted via `SLIDEKIT_WEBHOOK_ALLOW`) |
+
+Successful `200` responses carry a strong `ETag`; a matching `If-None-Match`
+request gets `304 Not Modified`. Identical renders (same Markdown + theme) are
+served from an in-memory cache without re-building. Large text/JSON responses
+are gzip/deflate-compressed when the client sends `Accept-Encoding`.
+
+- **Responses**:
+
+| Status | Meaning |
+|---|---|
+| 200 | `text/html` — the self-contained deck (attachment when `download=1`); `ETag` set |
+| 202 | async accepted — `{id,status}` JSON + `Location: /jobs/{id}` (with `async=1`) |
+| 304 | `If-None-Match` matched the current `ETag` |
+| 400 | empty Markdown, or `callback` host not allowlisted |
+| 401 | missing/invalid API key (when auth is enabled) |
+| 413 | body exceeds `SLIDEKIT_MAX_BODY_BYTES` |
+| 429 | rate limit exceeded (headers `RateLimit-*`, `Retry-After`) |
+| 500 | build failed (server logs the real reason) |
+| 503 | build queue full or queue wait timed out |
+| 504 | build timed out |
+
+### Async jobs — GET /jobs/{id} and /jobs/{id}/result
+
+With `POST /render?async=1` the build is enqueued and a job is returned
+immediately (`202`). Poll `GET /jobs/{id}` for `{ "id", "status" }` where status
+is `queued` / `running` / `done` / `error`; when `done` it includes
+`"result": "/jobs/{id}/result"`. `GET /jobs/{id}/result` returns the deck HTML
+(`200`, with `ETag`), `409` while the job is not finished, or `404` if the job
+is unknown/expired/failed. Both job routes require the API key when auth is
+enabled. Optionally pass `callback=<url>` to receive a completion webhook; the
+callback host must be listed in `SLIDEKIT_WEBHOOK_ALLOW` (empty ⇒ webhooks off).
+
+### Examples
+
+Render and download (with a theme + metadata):
+
+```bash
+curl --data-binary @deck.md -H 'content-type: text/markdown' \
+  -H 'authorization: Bearer sk_…' \
+  'http://localhost:4030/render?theme=editorial&title=My%20Deck&author=Me&download=1' \
+  -o deck.html
+```
+
+Multipart upload:
+
+```bash
+curl -F file=@deck.md -H 'authorization: Bearer sk_…' \
+  'http://localhost:4030/render?theme=neutral' -o deck.html
+```
+
+List themes / fetch spec:
+
+```bash
+curl http://localhost:4030/themes        # ["editorial","neutral"]
+curl http://localhost:4030/openapi.json
+```
+
+The returned HTML: open it directly (offline). Presenter mode with notes + next
+slide is at `deck.html#/presenter/1` (hash routing is injected automatically).
+
+---
+
+## 3. The two-layer theming model
+
+slidekit has TWO unrelated "theme" concepts. Confusing them is the most common
+mistake:
+
+- **`?theme=` (query param / upload field)** = a slidekit **CSS overlay**
+  (`neutral`, `editorial`, or any file in the themes directory). This controls the
+  look (palette, typography, accent).
+- **`theme:` (Markdown frontmatter)** = a **Slidev npm theme package**
+  (e.g. `seriph`, `default`). slidekit pins this and **normalizes whatever your
+  deck specifies** to `SLIDEKIT_BASE_THEME` (default `seriph`).
+
+> Important: putting `theme: neutral` (an overlay name) — or any uninstalled
+> theme — in your frontmatter does NOT break the build. slidekit rewrites the
+> top-level `theme:` to the base theme before building. Pick the visual look with
+> `?theme=`, not with frontmatter.
+
+```
+your Markdown
+  └─ Slidev base theme   (fixed: SLIDEKIT_BASE_THEME = seriph)
+       └─ CSS overlay     (per request: ?theme=neutral | editorial | …)
+            └─ one self-contained HTML
+```
+
+### Built-in overlays
+
+| Overlay | Look | Accent (light / dark) |
+|---|---|---|
+| `neutral` (default) | shadcn-style neutral; white / near-black | teal `#14b8a6` / `#2dd4bf` |
+| `editorial` | warm paper / espresso; bolder headings | indigo `#4f46e5` / `#818cf8` |
+
+`GET /themes` lists what's available; the OpenAPI `theme` enum is populated
+from it.
+
+### Design tokens
+
+Each overlay defines CSS variables on `:root` (light) and `html.dark` (dark):
+
+| Token | Purpose |
+|---|---|
+| `--c-bg` | slide background |
+| `--c-fg` | foreground / text |
+| `--c-muted` | muted/secondary text |
+| `--c-border` | card & divider borders (class `.border-token`) |
+| `--c-accent` | accent (links, icons, highlights) |
+| `--slidev-theme-primary` | Slidev primary var, set to `--c-accent` |
+
+Overlays also remap authored accent utilities onto `--c-accent`:
+`text-teal-400/500/600`, `border-teal-500/600` and `bg-teal-9xx`. So a deck
+written with `text-teal-500` automatically follows whichever overlay is active.
+
+### Light & dark
+
+Add `colorSchema: all` to the deck frontmatter to ship both palettes and the
+in-deck light/dark toggle (Slidev toolbar). The output is self-contained, so the
+toggle works offline.
+
+### Fonts (offline)
+
+Fonts are base64-inlined (`fonts.css`: Inter + JetBrains Mono) → zero external
+font requests. Set `fonts: { provider: none }` in your deck so Slidev doesn't add
+a Google Fonts `<link>` (the server also strips external `<link>`s as a safety
+net). Regenerate `fonts.css` with `node gen-fonts.mjs`.
+
+### Writing a custom overlay theme
+
+Create `themes/<name>.css`; it appears automatically in `/themes` and the
+OpenAPI enum. For the binary, rebuild (`npm run build:binary`) or set
+`SLIDEKIT_THEMES_DIR` to an external folder. Template:
+
+```css
+/* Theme: mybrand */
+@import '../fonts.css';
+:root {
+  --c-bg: #ffffff; --c-fg: #0b1020; --c-muted: #5b6472; --c-border: #e6e8ee;
+  --c-accent: #2563eb; --slidev-theme-primary: var(--c-accent);
+}
+html.dark {
+  --c-bg: #0b1020; --c-fg: #e8ebf2; --c-muted: #9aa3b2; --c-border: #222a3a;
+  --c-accent: #60a5fa;
+}
+.slidev-layout { background-color: var(--c-bg); color: var(--c-fg); font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+.slidev-layout.cover, .slidev-layout.intro { background-image: none !important; background-color: var(--c-bg) !important; color: var(--c-fg) !important; }
+.slidev-layout :is(h1,h2,h3,h4) { color: var(--c-fg); font-weight: 600; letter-spacing: -0.02em; }
+.border-token { border-color: var(--c-border) !important; }
+.slidev-layout a { color: var(--c-accent); }
+.slidev-layout :is(.text-teal-400,.text-teal-500,.text-teal-600) { color: var(--c-accent) !important; }
+.slidev-layout :is(.border-teal-500,.border-teal-600) { border-color: var(--c-accent) !important; }
+.slidev-layout :is([class*="bg-teal-9"]) { background-color: color-mix(in srgb, var(--c-accent) 10%, transparent) !important; }
+.slidev-layout svg { vertical-align: -0.18em; }
+```
+
+---
+
+## 4. Icons
+
+Icons render via Iconify (the SVG is inlined; no network at view time). Write them
+as components: `<{prefix}-{icon-name} />`.
+
+### Bundled collections
+
+| Collection | Prefix | Notes |
+|---|---|---|
+| Material Symbols | `material-symbols` | primary set (16k+), explicit dependency — guaranteed |
+| Carbon | `carbon` | bundled via Slidev's default theme |
+| Phosphor | `ph` | bundled via Slidev |
+| Spinners | `svg-spinners` | animated loaders, bundled via Slidev |
+
+Only `material-symbols` is a direct dependency; the rest arrive transitively with
+Slidev. Use an installed collection — an uninstalled one fails the build (same
+failure mode as an unknown theme).
+
+### Usage & styling
+
+```md
+<material-symbols-key-outline />
+<material-symbols-link class="text-teal-500 text-2xl" />
+<carbon-rocket />
+```
+
+- Material Symbols variants: append `-outline`, `-rounded`, `-sharp` (bare = filled).
+- Color via `text-*` (icons use `currentColor`); size via `text-*`. Coloring an
+  icon `text-teal-500` makes it follow the active theme accent.
+- Find names: https://icones.js.org or https://icon-sets.iconify.design.
+- MDC inline form (decks with `mdc: true`):
+  `… :material-symbols-lock-outline{.text-teal-500} …` in prose. Inside a raw
+  `<div>`, use the component form, not `:icon{}`.
+- Add another collection: `npm i @iconify-json/<name>`, rebuild the binary, then
+  `<lucide-rocket />`.
+
+---
+
+## 5. Authoring decks — checklist
+
+- `colorSchema: all` for the light/dark toggle.
+- `fonts: { provider: none }` to stay fully offline.
+- Don't rely on `theme:` — it's normalized; choose the look via `?theme=`.
+- Use `text-teal-*` for accents so they follow the chosen overlay.
+- Use bundled icons (`material-symbols`, `carbon`, `ph`, `svg-spinners`).
+- All standard Slidev features work: layouts (`two-cols`, `::right::`),
+  `v-clicks`, `mermaid`, KaTeX, UnoCSS/Tailwind utility classes, transitions.
+
+Example:
+
+```md
+---
+layout: two-cols
+colorSchema: all
+fonts: { provider: none }
+---
+
+# Before
+<v-clicks>
+
+- <material-symbols-link class="text-teal-500" /> APIs
+- <material-symbols-lock-outline class="text-teal-500" /> Secrets
+
+</v-clicks>
+
+::right::
+
+# After
+\`\`\`mermaid
+flowchart TD
+  A[Markdown] --> B[slidekit] --> C[one HTML]
+\`\`\`
+```
+
+---
+
+## 6. Configuration (environment variables)
+
+All config is via env vars (optionally a `.env` file; loaded by Node's built-in
+loader). Invalid values fail fast at startup.
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `PORT` | HTTP listen port | `4030` |
+| `HOST` | bind address (`127.0.0.1` behind a proxy) | `0.0.0.0` |
+| `LOG_LEVEL` | `debug`/`info`/`warn`/`error` | `info` |
+| `LOG_FORMAT` | `json`/`pretty` | `json` |
+| `SLIDEKIT_API_KEYS` | comma-separated; non-empty ⇒ `/render` requires a key | (empty) |
+| `SLIDEKIT_REQUIRE_AUTH_ALL` | `1` ⇒ require a key on all routes except `/health`,`/ready` | `0` |
+| `SLIDEKIT_TRUST_PROXY` | `1` ⇒ client IP from `X-Forwarded-For` | `0` |
+| `SLIDEKIT_RATE_LIMIT_MAX` | max `/render` req per window per identity; `0` disables | `30` |
+| `SLIDEKIT_RATE_LIMIT_WINDOW_MS` | rate-limit window (ms) | `60000` |
+| `SLIDEKIT_MAX_BODY_BYTES` | max upload size → 413 | `1048576` |
+| `SLIDEKIT_BUILD_TIMEOUT_MS` | kill a build (whole process group) → 504 | `120000` |
+| `SLIDEKIT_BUILD_CONCURRENCY` | concurrent builds (kept at 1) | `1` |
+| `SLIDEKIT_BUILD_QUEUE_MAX` | queued builds before 503 | `20` |
+| `SLIDEKIT_QUEUE_TIMEOUT_MS` | max time a request waits in the build queue → 503 | `30000` |
+| `SLIDEKIT_JANITOR_INTERVAL_MS` | periodic sweep of stale temp files; `0` disables | `0` |
+| `SLIDEKIT_REQUEST_TIMEOUT_MS` | `http.Server.requestTimeout` (slow-loris guard); `0` off | `130000` |
+| `SLIDEKIT_HEADERS_TIMEOUT_MS` | `http.Server.headersTimeout`; `0` off | `15000` |
+| `SLIDEKIT_CACHE_MAX` | render-cache entries (same Markdown+theme); `0` disables | `50` |
+| `SLIDEKIT_CACHE_TTL_MS` | render-cache entry TTL; `0` = no expiry | `0` |
+| `SLIDEKIT_JOBS_MAX` | max retained async jobs/results | `100` |
+| `SLIDEKIT_JOB_TTL_MS` | async job/result lifetime | `600000` |
+| `SLIDEKIT_WEBHOOK_ALLOW` | comma-separated host allowlist for `callback`; empty ⇒ webhooks off | (empty) |
+| `SLIDEKIT_COMPRESSION` | gzip/deflate/br compress responses; `0` disables | `1` |
+| `SLIDEKIT_CORS_ORIGIN` | value for `Access-Control-Allow-Origin`; empty ⇒ no CORS | (empty) |
+| `SLIDEKIT_DEFAULT_THEME` | overlay when `?theme=` is absent/unknown | `neutral` |
+| `SLIDEKIT_BASE_THEME` | Slidev base theme; deck `theme:` is normalized to this | `seriph` |
+| `SLIDEKIT_THEMES_DIR` | directory of `*.css` overlays | `<root>/themes` |
+| `SLIDEKIT_WORK_DIR` | scratch dir for build outputs | `<tmpdir>/slidekit` |
+| `SLIDEKIT_SHUTDOWN_GRACE_MS` | drain time for the in-flight build on SIGTERM | `10000` |
+
+---
+
+## 7. Running & deploying
+
+- **Node service**: `npm ci && node server.mjs` (or `npm run serve`).
+- **Single binary**: `npm run build:binary` → `dist/slidekit-deck` (embeds the
+  whole runtime; extracts to `~/.cache/slidekit-deck/<hash>` on first run; no
+  Docker, no external `node_modules`). Platform-specific — build per OS/arch.
+  Prebuilt macOS-arm64 / Linux-x64/arm64 binaries are attached to GitHub Releases.
+- **Docker**: `docker build -t slidekit . && docker run -p 4030:4030 -e SLIDEKIT_API_KEYS=$KEYS slidekit` (non-root, healthchecked).
+
+Lifecycle: `/health` (liveness), `/ready` (readiness, 503 while draining). On
+SIGTERM the service fails readiness, drains the in-flight build, then exits 0.
+Logs are structured JSON to stdout (one line per request, with a request id).
+
+---
+
+## 8. Security / trust model (read before exposing)
+
+`/render` runs a real Slidev/Vite build on the uploaded Markdown. A Slidev deck
+can contain `<script setup>`, Vue components and Vite config that **execute during
+the build**. Therefore:
+
+> Uploading Markdown is equivalent to running arbitrary code as the server's OS
+> user. This is inherent to "render exactly like Slidev" and cannot be sandboxed
+> in-process.
+
+Built-in controls (API keys, rate limit, body-size cap, build timeout, concurrency
++ queue caps) are defense-in-depth, NOT a sandbox. Deploy safely: require
+`SLIDEKIT_API_KEYS`, put it behind a reverse proxy with auth, bind `HOST=127.0.0.1`,
+and run non-root in an ephemeral, egress-restricted container/VM. Report
+vulnerabilities privately to mike@mikebild.com.
+
+---
+
+## 9. Architecture (for contributors)
+
+Zero runtime dependencies in the server code (Node built-ins only); rendering is
+delegated to the bundled Slidev toolchain. Request lifecycle for `POST /render`:
+
+```
+security headers + (optional) API-key auth + rate limit + body-size cap
+  → resolve theme + parse metadata from query
+  → forceBaseTheme(md)  (normalize deck theme: to the base theme)
+  → ensureHashRouting(md)  (offline + presenter without a server)
+  → build.run(): queue → swap style.css to the overlay → real `slidev build`
+  → read the single inlined index.html (vite-plugin-singlefile)
+  → stripExternals(html)  (remove favicon + Google Fonts links)
+  → injectMeta(html, meta)  (title + OpenGraph/Twitter, deduped)
+  → one self-contained HTML
+```
+
+Modules under `src/`: `config`, `logger`, `server` (composition root), `build`
+(the dangerous core), `html-postprocess` (pure helpers: hash routing, theme
+normalization, external stripping, meta), `themes`, `auth`, `ratelimit`,
+`openapi` (route registry → OpenAPI 3.1), `metrics`, `multipart`. The root
+`server.mjs` is a thin entry. OpenAPI is generated from the route registry so docs
+can't drift from the implementation.
+
+---
+
+## 10. Troubleshooting
+
+- **HTTP 500 "build failed"** — the deck has invalid Slidev syntax, references an
+  uninstalled Slidev `theme:` (now normalized away — update to a current build),
+  or uses an uninstalled icon collection (`<carbon-…/>` etc. are fine; exotic ones
+  need installing + a rebuild). The server logs the real `slidev build` error.
+- **HTTP 401** — auth is enabled; send `Authorization: Bearer <key>`.
+- **HTTP 413** — upload exceeds `SLIDEKIT_MAX_BODY_BYTES` (default 1 MiB).
+- **HTTP 429** — over `SLIDEKIT_RATE_LIMIT_MAX`; honor `Retry-After`.
+- **HTTP 503/504** — build queue full / build timed out; retry or raise the caps.
+- **Fonts/links loaded from the network** — set `fonts: { provider: none }` in the
+  deck; the server strips external `<link>`s, but `provider: none` is cleaner.
+- **Output not rendering offline / presenter not working** — hash routing is
+  injected automatically; open the file directly and use `…#/presenter/1`.

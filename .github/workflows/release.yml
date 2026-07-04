@@ -1,0 +1,60 @@
+name: Release
+
+# Cut a release by pushing a version tag:
+#   npm version 1.2.3   # updates package.json + creates the tag
+#   git push --follow-tags
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  # Build the self-contained binary natively on each platform. It embeds a
+  # platform-specific Node binary + native deps, so each target must build on its
+  # own runner (cross-compiling is not reliable here).
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            asset: slidekit-macos-arm64
+          - os: ubuntu-latest
+            asset: slidekit-linux-x64
+          - os: ubuntu-24.04-arm
+            asset: slidekit-linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+      - run: npm ci
+      - run: npm test
+      - run: bash build-binary.sh
+      - run: mv dist/slidekit-deck "${{ matrix.asset }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum slidekit-* > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -1,0 +1,80 @@
+/* Theme: neutral — shadcn-style, light + dark (toggle via colorSchema: all). */
+@import '../fonts.css';
+
+:root {
+  --c-bg: #ffffff; /* white */
+  --c-fg: #0a0a0a; /* neutral-950 */
+  --c-muted: #525252; /* neutral-600 */
+  --c-border: #e5e5e5; /* neutral-200 */
+  --c-accent: #14b8a6; /* teal-500  */
+  --slidev-theme-primary: var(--c-accent);
+}
+
+html.dark {
+  --c-bg: #0a0a0a; /* neutral-950 */
+  --c-fg: #ededed; /* neutral-100 */
+  --c-muted: #a3a3a3; /* neutral-400 */
+  --c-border: #262626; /* neutral-800 */
+  --c-accent: #2dd4bf; /* teal-400  */
+}
+
+/* ---- Canvas -------------------------------------------------- */
+.slidev-layout {
+  background-color: var(--c-bg);
+  color: var(--c-fg);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Override seriph's cover: it pulls a (now-broken) Unsplash photo via
+   background-image. Drop it for a clean neutral cover in both schemes. */
+.slidev-layout.cover,
+.slidev-layout.intro {
+  background-image: none !important;
+  background-color: var(--c-bg) !important;
+  color: var(--c-fg) !important;
+}
+.slidev-layout.cover :is(h1, h2, h3, h4),
+.slidev-layout.intro :is(h1, h2, h3, h4) {
+  color: var(--c-fg) !important;
+}
+
+/* ---- Typography: neutral, sans, semibold headings ----------- */
+.slidev-layout :is(h1, h2, h3, h4) {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  color: var(--c-fg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.slidev-layout h1 {
+  line-height: 1.12;
+}
+
+/* ---- Token-driven borders + theme-driven accent ------------- */
+.border-token {
+  border-color: var(--c-border) !important;
+}
+.slidev-layout hr {
+  border-color: var(--c-border);
+}
+.slidev-layout a {
+  color: var(--c-accent);
+}
+
+/* Map the decks' authored teal accents onto the active theme accent,
+   so swapping the theme also recolours icons/highlights/borders. */
+.slidev-layout :is(.text-teal-400, .text-teal-500, .text-teal-600) {
+  color: var(--c-accent) !important;
+}
+.slidev-layout :is(.border-teal-500, .border-teal-600) {
+  border-color: var(--c-accent) !important;
+}
+.slidev-layout :is([class*='bg-teal-9']) {
+  background-color: color-mix(in srgb, var(--c-accent) 10%, transparent) !important;
+}
+
+/* ---- Inline material-symbols icons: optical alignment ------- */
+.slidev-layout svg {
+  vertical-align: -0.18em;
+}
