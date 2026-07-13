@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-07-13
+
+### Changed
+
+- Dependency maintenance via Dependabot: `@slidev/cli` v52.17,
+  `@iconify-json/material-symbols` patch bump, and the `eslint` v10.7 /
+  `prettier` v3.9.5 dev tooling. GitHub Actions `checkout` updated to v7. No
+  functional changes to the service.
+
 ## [1.2.2] - 2026-07-04
 
 ### Fixed
@@ -124,7 +133,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Unit test suite (`node:test`) and a gated integration test; GitHub Actions CI
   (lint + tests + integration).
 
-[Unreleased]: https://github.com/mikebild/slidekit/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/mikebild/slidekit/compare/v1.2.3...HEAD
+[1.2.3]: https://github.com/mikebild/slidekit/releases/tag/v1.2.3
+[1.2.2]: https://github.com/mikebild/slidekit/releases/tag/v1.2.2
 [1.2.1]: https://github.com/mikebild/slidekit/releases/tag/v1.2.1
 [1.2.0]: https://github.com/mikebild/slidekit/releases/tag/v1.2.0
 [1.1.0]: https://github.com/mikebild/slidekit/releases/tag/v1.1.0
