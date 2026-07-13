@@ -51,8 +51,8 @@
     "build:binary": "bash build-binary.sh"
   },
   "dependencies": {
-    "@iconify-json/material-symbols": "^1.2.82",
-    "@slidev/cli": "^52.16.0",
+    "@iconify-json/material-symbols": "^1.2.83",
+    "@slidev/cli": "^52.17.0",
     "@slidev/theme-default": "^0.25.0",
     "@slidev/theme-seriph": "^0.25.0",
     "vite-plugin-singlefile": "^2.3.3"
@@ -60,8 +60,8 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "c8": "^11.0.0",
-    "eslint": "^10.6.0",
+    "eslint": "^10.7.0",
     "globals": "^17.7.0",
-    "prettier": "^3.9.4"
+    "prettier": "^3.9.5"
   }
 }
