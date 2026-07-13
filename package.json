@@ -1,6 +1,6 @@
 {
   "name": "slidekit",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "HTTP service that turns Markdown into one fully self-contained Slidev HTML deck (CSS/JS/fonts inline, presenter mode, offline).",
   "type": "module",
   "license": "MIT",
