@@ -51,8 +51,8 @@
     "build:binary": "bash build-binary.sh"
   },
   "dependencies": {
-    "@iconify-json/material-symbols": "^1.2.83",
-    "@slidev/cli": "^52.17.0",
+    "@iconify-json/material-symbols": "^1.2.85",
+    "@slidev/cli": "^52.18.0",
     "@slidev/theme-default": "^0.25.0",
     "@slidev/theme-seriph": "^0.25.0",
     "vite-plugin-singlefile": "^2.3.3"
