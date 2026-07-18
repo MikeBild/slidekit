@@ -37,6 +37,8 @@ are base64-inlined (`fonts.css`), so the result has **no external requests**.
 | `ratelimit.mjs`        | In-memory fixed-window limiter                                                      |
 | `openapi.mjs`          | Route registry → OpenAPI 3.1                                                        |
 | `metrics.mjs`          | In-memory Prometheus metrics                                                        |
+| `stats.mjs`            | Durable, bounded hourly product statistics behind the existing service auth         |
+| `trace-context.mjs`    | W3C Trace Context validation, creation and continuation                             |
 | `multipart.mjs`        | Minimal `multipart/form-data` parser                                                |
 
 Root `server.mjs` is a thin entry (`start()`), kept so the binary launcher can
@@ -50,7 +52,8 @@ scheme are injected dynamically, so the docs cannot drift from the runtime.
 
 ## Binary packaging
 
-`build-binary.sh` tars the Node runtime + `node_modules` + `src/` + themes/fonts/
+`build-binary.sh` downloads and SHA-256 verifies the pinned official Node.js
+22.23.1 runtime, then tars it with `node_modules` + `src/` + themes/fonts/
 docs/config into `payload.tgz`, hashes it into a cache key, and compiles a Bun
 launcher (`bin/slidekit.ts`) that embeds the payload. On first run the launcher
 extracts to `~/.cache/slidekit-deck/<hash>` and spawns the embedded Node running

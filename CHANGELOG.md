@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-18
+
+- Binary builds now embed a checksum-verified official Node.js 22.23.1 runtime,
+  preventing non-portable Homebrew library references; `--version` is supported.
+
+### Added
+
+- W3C Trace Context continuation across HTTP requests, async jobs and callbacks.
+- Authenticated hourly build statistics backed by bounded durable aggregate
+  state and the existing service API keys.
+
+### Changed
+
+- Prometheus build duration now uses a seconds histogram and build-result labels;
+  the former millisecond sum remains for one compatibility release.
+- Structured request logs now carry stable service, deployment and trace fields.
+
 ## [1.2.3] - 2026-07-13
 
 ### Changed

@@ -14,6 +14,8 @@ import { createBuildRunner, BuildError, sweepStale } from './build.mjs'
 import { createCache } from './cache.mjs'
 import { createJobStore, isAllowedCallback } from './jobs.mjs'
 import { createMetrics } from './metrics.mjs'
+import { createBuildStats, resolveStatsWindow } from './stats.mjs'
+import { createTraceContext } from './trace-context.mjs'
 import { parseMultipart } from './multipart.mjs'
 import {
   ensureHashRouting,
@@ -50,10 +52,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // Deliver a job-completion webhook. Best-effort: one retry, short timeout, and
 // failures only log — the job's own status is authoritative.
-async function notifyWebhook(url, payload, logger) {
+async function notifyWebhook(url, payload, logger, traceparent) {
   const opts = {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(traceparent ? { traceparent } : {}) },
     body: JSON.stringify(payload),
   }
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -124,6 +126,11 @@ function readBody(req, max) {
 }
 
 export function createApp(config, logger = createLogger(config)) {
+  logger = logger.child({
+    'service.name': 'slidekit',
+    'service.version': config.version,
+    'deployment.environment.name': config.environment,
+  })
   const auth = createAuthChecker(config.apiKeys)
   const limiter = createRateLimiter({
     windowMs: config.rateLimitWindowMs,
@@ -133,23 +140,50 @@ export function createApp(config, logger = createLogger(config)) {
   const cache = createCache({ max: config.cacheMax, ttlMs: config.cacheTtlMs })
   const jobs = createJobStore({ max: config.jobsMax, ttlMs: config.jobTtlMs })
   const metrics = createMetrics()
+  const stats = createBuildStats({
+    statePath: config.analyticsStatePath,
+    serviceVersion: config.version,
+  })
   const state = { draining: false }
 
   const sha256 = (s) => createHash('sha256').update(s).digest('hex')
 
   // Shared render pipeline used by both the sync and async (job) paths: cache
   // lookup -> build on miss -> per-request meta injection -> strong ETag.
-  async function renderDeck(md, meta) {
+  async function renderDeck(md, meta, mode) {
+    stats.recordRender(mode)
     const prepared = ensureHashRouting(forceBaseTheme(md, config.baseTheme))
     const cacheKey = sha256(prepared + '|' + meta.theme)
     let rawHtml = cache.get(cacheKey)
     if (rawHtml !== undefined) {
       metrics.cacheHit()
+      stats.recordCache('hit')
     } else {
       metrics.cacheMiss()
+      stats.recordCache('miss')
       const t0 = Date.now()
-      rawHtml = await builds.run(prepared, meta.theme) // may throw BuildError
-      metrics.buildObserved(Date.now() - t0)
+      try {
+        rawHtml = await builds.run(prepared, meta.theme) // may throw BuildError
+        const durationMs = Date.now() - t0
+        metrics.buildObserved(durationMs, 'success')
+        stats.recordBuild({
+          result: 'success',
+          durationSeconds: durationMs / 1000,
+          outputBytes: Buffer.byteLength(rawHtml),
+        })
+        logger.info('build completed', {
+          'event.name': 'slidekit.build.completed',
+          result: 'success',
+          mode,
+          duration_seconds: durationMs / 1000,
+          output_bytes: Buffer.byteLength(rawHtml),
+        })
+      } catch (error) {
+        const durationMs = Date.now() - t0
+        metrics.buildObserved(durationMs, 'error')
+        stats.recordBuild({ result: 'error', durationSeconds: durationMs / 1000 })
+        throw error
+      }
       cache.put(cacheKey, rawHtml)
     }
     const html = injectMeta(stripExternals(rawHtml), meta)
@@ -172,21 +206,35 @@ export function createApp(config, logger = createLogger(config)) {
       return send(res, 503, { 'content-type': 'text/plain', 'retry-after': '5' }, 'busy, try again')
     if (e instanceof BuildError && e.code === 'TIMEOUT')
       return send(res, 504, { 'content-type': 'text/plain' }, 'build timed out')
-    logger.error('build failed', { err: String(e?.message || e).slice(0, 500) })
+    logger.error('build failed', {
+      'event.name': 'slidekit.build.failed',
+      err: String(e?.message || e).slice(0, 500),
+    })
     return send(res, 500, { 'content-type': 'text/plain' }, 'build failed')
   }
 
   // Run a queued job to completion in the background, then fire the webhook (if
   // any). Never rejects — failures are recorded on the job and logged.
-  function runJob(id, md, meta, callback) {
+  function runJob(id, md, meta, callback, trace) {
     jobs.markRunning(id)
+    metrics.jobTransition('running')
+    stats.recordJob('running')
     ;(async () => {
       try {
-        const { html, etag } = await renderDeck(md, meta)
+        const { html, etag } = await renderDeck(md, meta, 'async')
         jobs.setResult(id, html, etag)
+        metrics.jobTransition('done')
+        stats.recordJob('done')
       } catch (e) {
         jobs.fail(id, e instanceof BuildError ? e.code : 'BUILD_FAILED')
-        logger.error('job build failed', { id, err: String(e?.message || e).slice(0, 300) })
+        metrics.jobTransition('error')
+        stats.recordJob('error')
+        logger.error('job build failed', {
+          'event.name': 'slidekit.job.failed',
+          id,
+          trace_id: trace.traceId,
+          err: String(e?.message || e).slice(0, 300),
+        })
       }
       if (callback) {
         const job = jobs.get(id)
@@ -194,6 +242,7 @@ export function createApp(config, logger = createLogger(config)) {
           callback,
           { id, status: job?.status || 'gone', ...(job?.error ? { error: job.error } : {}) },
           logger,
+          createTraceContext(trace.traceparent).traceparent,
         )
       }
     })()
@@ -241,8 +290,19 @@ export function createApp(config, logger = createLogger(config)) {
 
     // --- auth (per-route) ---
     const isProbe = path === '/health' || path === '/ready'
+    if (path === '/v1/stats/builds' && !auth.enabled) {
+      return send(
+        res,
+        503,
+        { 'content-type': 'text/plain' },
+        'service authentication not configured',
+      )
+    }
     const routeNeedsAuth =
-      path === '/render' || path.startsWith('/jobs/') || (config.requireAuthAll && !isProbe)
+      path === '/render' ||
+      path === '/v1/stats/builds' ||
+      path.startsWith('/jobs/') ||
+      (config.requireAuthAll && !isProbe)
     if (auth.enabled && routeNeedsAuth) {
       const key = extractApiKey(req.headers)
       if (!auth.check(key)) {
@@ -308,7 +368,7 @@ export function createApp(config, logger = createLogger(config)) {
         res,
         200,
         { 'content-type': 'application/json' },
-        JSON.stringify({ status: 'ready', inflight: builds.inflight() }),
+        JSON.stringify({ status: 'ready', version: config.version, inflight: builds.inflight() }),
       )
     }
     if (req.method === 'GET' && path === '/metrics') {
@@ -318,6 +378,24 @@ export function createApp(config, logger = createLogger(config)) {
         { 'content-type': 'text/plain; version=0.0.4' },
         metrics.render(builds.inflight()),
       )
+    }
+    if (req.method === 'GET' && path === '/v1/stats/builds') {
+      try {
+        const window = resolveStatsWindow(url.searchParams)
+        return send(
+          res,
+          200,
+          { 'content-type': 'application/json' },
+          JSON.stringify(stats.query(window)),
+        )
+      } catch (error) {
+        return send(
+          res,
+          400,
+          { 'content-type': 'application/json' },
+          JSON.stringify({ error: 'invalid_window', message: String(error.message) }),
+        )
+      }
     }
     if (req.method === 'GET' && path === '/themes') {
       return send(
@@ -383,7 +461,9 @@ export function createApp(config, logger = createLogger(config)) {
           )
         }
         const job = jobs.create(meta)
-        runJob(job.id, md, meta, callback)
+        metrics.jobTransition('queued')
+        stats.recordJob('queued')
+        runJob(job.id, md, meta, callback, req.traceContext)
         return send(
           res,
           202,
@@ -394,7 +474,7 @@ export function createApp(config, logger = createLogger(config)) {
 
       let result
       try {
-        result = await renderDeck(md, meta)
+        result = await renderDeck(md, meta, 'sync')
       } catch (e) {
         return sendBuildError(res, e)
       }
@@ -437,14 +517,26 @@ export function createApp(config, logger = createLogger(config)) {
   }
 
   const server = createServer((req, res) => {
-    const reqId = randomUUID().slice(0, 8)
+    const reqId = randomUUID()
+    const trace = createTraceContext(req.headers.traceparent)
+    req.traceContext = trace
     res.setHeader('x-request-id', reqId)
+    res.setHeader('traceparent', trace.traceparent)
     const t0 = Date.now()
     res.on('finish', () => {
-      const route = (req.url || '').split('?')[0]
+      const rawRoute = (req.url || '').split('?')[0]
+      const route = rawRoute.startsWith('/jobs/')
+        ? rawRoute.endsWith('/result')
+          ? '/jobs/{id}/result'
+          : '/jobs/{id}'
+        : rawRoute
       metrics.requestDone(route, res.statusCode)
       logger.info('request', {
-        reqId,
+        request_id: reqId,
+        trace_id: trace.traceId,
+        span_id: trace.spanId,
+        parent_span_id: trace.parentSpanId,
+        'event.name': 'http.server.request',
         method: req.method,
         path: route,
         status: res.statusCode,
@@ -452,7 +544,13 @@ export function createApp(config, logger = createLogger(config)) {
       })
     })
     handle(req, res).catch((e) => {
-      logger.error('unhandled', { reqId, err: String(e?.message || e) })
+      logger.error('unhandled', {
+        request_id: reqId,
+        trace_id: trace.traceId,
+        span_id: trace.spanId,
+        parent_span_id: trace.parentSpanId,
+        err: String(e?.message || e),
+      })
       if (!res.headersSent) send(res, 500, { 'content-type': 'text/plain' }, 'internal error')
     })
   })
@@ -462,7 +560,7 @@ export function createApp(config, logger = createLogger(config)) {
   if (config.requestTimeoutMs > 0) server.requestTimeout = config.requestTimeoutMs
   if (config.headersTimeoutMs > 0) server.headersTimeout = config.headersTimeoutMs
 
-  return { server, builds, limiter, auth, state, metrics, cache, jobs }
+  return { server, builds, limiter, auth, state, metrics, stats, cache, jobs }
 }
 
 export function start(config = loadConfig()) {
@@ -510,6 +608,7 @@ export function start(config = loadConfig()) {
     app.limiter.stop?.()
     app.cache.stop?.()
     app.jobs.stop?.()
+    await app.stats.flush()
     if (janitor) clearInterval(janitor)
     logger.info('shutdown complete', { signal })
     process.exit(0)

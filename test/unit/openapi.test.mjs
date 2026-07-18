@@ -11,6 +11,7 @@ test('builds a 3.1 doc with all routes', () => {
     '/health',
     '/ready',
     '/metrics',
+    '/v1/stats/builds',
     '/render',
     '/openapi.json',
     '/llms.txt',
@@ -28,13 +29,16 @@ test('theme enum is injected dynamically', () => {
   assert.equal(theme.schema.default, 'b')
 })
 
-test('security scheme appears only when auth enabled', () => {
+test('service auth is conditional while the stats route is always secured', () => {
   const open = buildOpenApi(['neutral'], { authEnabled: false })
-  assert.equal(open.components, undefined)
+  assert.ok(open.components.securitySchemes.bearerAuth)
+  assert.equal(open.paths['/render'].post.security, undefined)
+  assert.ok(open.paths['/v1/stats/builds'].get.security)
   assert.equal(open.paths['/render'].post.security, undefined)
 
   const secured = buildOpenApi(['neutral'], { authEnabled: true })
   assert.ok(secured.components.securitySchemes.bearerAuth)
   assert.ok(secured.paths['/render'].post.security)
   assert.equal(secured.paths['/health'].get.security, undefined) // probes stay public
+  assert.ok(buildOpenApi(['neutral']).paths['/v1/stats/builds'].get.security)
 })

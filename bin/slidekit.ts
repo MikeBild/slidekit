@@ -48,7 +48,7 @@ if (!complete) {
   }
 }
 
-const child = Bun.spawn([nodeBin, server], {
+const child = Bun.spawn([nodeBin, server, ...process.argv.slice(2)], {
   stdio: ['inherit', 'inherit', 'inherit'],
   env: process.env,
 })

@@ -58,7 +58,7 @@ test('render: identical requests share an ETag and hit the cache (one build)', a
     await r2.text()
 
     const metrics = await (await fetch(`${base}/metrics`)).text()
-    assert.match(metrics, /slidekit_builds_total 1\b/, 'built exactly once')
+    assert.match(metrics, /slidekit_builds_total\{result="success"\} 1\b/, 'built exactly once')
     assert.match(metrics, /slidekit_cache_hits_total 1\b/)
     assert.match(metrics, /slidekit_cache_misses_total 1\b/)
   })

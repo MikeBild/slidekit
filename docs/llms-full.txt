@@ -44,10 +44,11 @@ Base URL (self-host): `http://localhost:4030`.
 | GET  | `/themes`         | JSON array of available CSS-overlay theme names |
 | GET  | `/openapi.json`   | Generated OpenAPI 3.1 spec |
 | GET  | `/health`         | Liveness — `200 "ok"` while the process is up |
-| GET  | `/ready`          | Readiness — `200 {"status":"ready"}`; `503 {"status":"draining"}` during shutdown |
+| GET  | `/ready`          | Readiness — `200 {"status":"ready","version":"…"}`; `503` while draining |
 | GET  | `/metrics`        | Prometheus metrics (requests, builds, durations, in-flight, cache) |
 | GET  | `/jobs/{id}`      | Async job status (queued/running/done/error) |
 | GET  | `/jobs/{id}/result` | Async job result — the self-contained HTML deck once done |
+| GET  | `/v1/stats/builds` | Authenticated hourly build, render, cache and job statistics |
 | GET  | `/llms.txt`       | This documentation index (llmstxt.org format) |
 | GET  | `/llms-full.txt`  | The full documentation inlined in one file |
 
@@ -111,6 +112,16 @@ is `queued` / `running` / `done` / `error`; when `done` it includes
 is unknown/expired/failed. Both job routes require the API key when auth is
 enabled. Optionally pass `callback=<url>` to receive a completion webhook; the
 callback host must be listed in `SLIDEKIT_WEBHOOK_ALLOW` (empty ⇒ webhooks off).
+
+### Product statistics — GET /v1/stats/builds
+
+This regular product API returns bounded hourly build, cache, job-transition,
+duration and output-size aggregates. `from` and `to` are full UTC hours, the end
+is exclusive, and a request may span at most 90 days. It reuses
+`SLIDEKIT_API_KEYS` and returns 503 when service authentication is not configured.
+The durable aggregate state contains no Markdown, deck names, URLs, job IDs,
+credentials or user identifiers. Recovery from malformed state is visible in
+`quality.partial` and `quality.reasons`.
 
 ### Examples
 
@@ -323,6 +334,7 @@ loader). Invalid values fail fast at startup.
 | `HOST` | bind address (`127.0.0.1` behind a proxy) | `0.0.0.0` |
 | `LOG_LEVEL` | `debug`/`info`/`warn`/`error` | `info` |
 | `LOG_FORMAT` | `json`/`pretty` | `json` |
+| `DEPLOYMENT_ENVIRONMENT` | stable environment name in structured logs | `NODE_ENV` or `development` |
 | `SLIDEKIT_API_KEYS` | comma-separated; non-empty ⇒ `/render` requires a key | (empty) |
 | `SLIDEKIT_REQUIRE_AUTH_ALL` | `1` ⇒ require a key on all routes except `/health`,`/ready` | `0` |
 | `SLIDEKIT_TRUST_PROXY` | `1` ⇒ client IP from `X-Forwarded-For` | `0` |
@@ -347,6 +359,8 @@ loader). Invalid values fail fast at startup.
 | `SLIDEKIT_BASE_THEME` | Slidev base theme; deck `theme:` is normalized to this | `seriph` |
 | `SLIDEKIT_THEMES_DIR` | directory of `*.css` overlays | `<root>/themes` |
 | `SLIDEKIT_WORK_DIR` | scratch dir for build outputs | `<tmpdir>/slidekit` |
+| `SLIDEKIT_ANALYTICS_STATE_PATH` | durable bounded product-statistics state | `$XDG_STATE_HOME/slidekit/analytics.json` |
+| `XDG_STATE_HOME` | platform state root used by the default analytics path | `~/.local/state` |
 | `SLIDEKIT_SHUTDOWN_GRACE_MS` | drain time for the in-flight build on SIGTERM | `10000` |
 
 ---

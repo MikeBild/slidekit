@@ -19,7 +19,7 @@ inlined into a single file, see [docs/llms-full.txt](docs/llms-full.txt).
 
 ## API & usage
 
-- Endpoints: `GET /` (JSON service descriptor), `POST /render` (Markdown → one self-contained HTML deck), `GET /themes`, `GET /health` (liveness), `GET /ready` (readiness; 503 while draining), `GET /metrics` (Prometheus), `GET /jobs/{id}` (async job status), `GET /jobs/{id}/result` (async job result deck), `GET /openapi.json`, `GET /llms.txt`, `GET /llms-full.txt`.
+- Endpoints: `GET /` (JSON service descriptor), `POST /render` (Markdown → one self-contained HTML deck), `GET /themes`, `GET /health` (liveness), `GET /ready` (readiness; 503 while draining), `GET /metrics` (Prometheus), `GET /v1/stats/builds` (authenticated hourly product statistics), `GET /jobs/{id}` (async job status), `GET /jobs/{id}/result` (async job result deck), `GET /openapi.json`, `GET /llms.txt`, `GET /llms-full.txt`.
 - `POST /render` query params (all optional): `theme` (CSS overlay; see `/themes`), `title`, `author`, `tags`, `description`, `image`, `imageAlt`, `url` (canonical), `siteName`, `locale`, `lang`, `robots`, `themeColor`, `twitterSite`, `twitterCreator`, `favicon` (emoji/data: URI, inlined), `download=1`, `async=1` (→ 202 + `/jobs/{id}`), `callback` (async webhook; host must be in `SLIDEKIT_WEBHOOK_ALLOW`). Body: raw `text/markdown`, or `multipart/form-data` file field (`file`/`markdown`/`md`). Responses carry a strong `ETag` (→ `304` on `If-None-Match`); identical renders are cached; responses are gzip-compressed on `Accept-Encoding`.
 - OpenAPI 3.1 is generated from a route registry, with the `theme` enum and auth scheme injected dynamically — fetch the live spec at `/openapi.json`.
 

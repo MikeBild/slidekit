@@ -2,7 +2,7 @@
 // validated (fail fast on bad input), and frozen. No dependencies.
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { readFileSync } from 'node:fs'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -50,6 +50,7 @@ function list(name) {
 export function loadConfig() {
   return Object.freeze({
     version: VERSION,
+    environment: str('DEPLOYMENT_ENVIRONMENT', process.env.NODE_ENV || 'development'),
     // paths
     root: ROOT,
     slidevCli: join(ROOT, 'node_modules', '@slidev', 'cli', 'bin', 'slidev.mjs'),
@@ -57,6 +58,10 @@ export function loadConfig() {
     themesDir: str('SLIDEKIT_THEMES_DIR', join(ROOT, 'themes')),
     docsDir: join(ROOT, 'docs'),
     workDir: str('SLIDEKIT_WORK_DIR', join(tmpdir(), 'slidekit')),
+    analyticsStatePath: str(
+      'SLIDEKIT_ANALYTICS_STATE_PATH',
+      join(str('XDG_STATE_HOME', join(homedir(), '.local', 'state')), 'slidekit', 'analytics.json'),
+    ),
     defaultTheme: str('SLIDEKIT_DEFAULT_THEME', 'neutral'),
     // Slidev base theme (an installed npm theme). The uploaded deck's own
     // `theme:` is normalized to this so an unknown theme can't break the build;

@@ -19,7 +19,10 @@ test('buildObserved counts builds and sums durations', () => {
   m.buildObserved(100)
   m.buildObserved(250)
   const out = m.render(1)
-  assert.match(out, /slidekit_builds_total 2\n/)
+  assert.match(out, /slidekit_builds_total\{result="success"\} 2\n/)
+  assert.match(out, /slidekit_builds_total\{result="error"\} 0\n/)
+  assert.match(out, /slidekit_build_duration_seconds_sum 0.35\n/)
+  assert.match(out, /slidekit_build_duration_seconds_count 2\n/)
   assert.match(out, /slidekit_build_duration_ms_sum 350\n/)
   assert.match(out, /slidekit_builds_inflight 1\n/)
 })
@@ -39,10 +42,12 @@ test('render output is Prometheus text format (HELP/TYPE per metric)', () => {
   for (const name of [
     'slidekit_requests_total',
     'slidekit_builds_total',
+    'slidekit_build_duration_seconds',
     'slidekit_build_duration_ms_sum',
     'slidekit_builds_inflight',
     'slidekit_cache_hits_total',
     'slidekit_cache_misses_total',
+    'slidekit_job_transitions_total',
   ]) {
     assert.match(out, new RegExp(`# HELP ${name} `))
     assert.match(out, new RegExp(`# TYPE ${name} `))

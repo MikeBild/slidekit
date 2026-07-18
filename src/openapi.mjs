@@ -126,11 +126,35 @@ export const ROUTES = [
     responses: { 200: { desc: 'Metrics in Prometheus text format', type: 'text/plain' } },
   },
   {
+    method: 'get',
+    path: '/v1/stats/builds',
+    summary: 'Hourly build, render, cache and async-job statistics',
+    auth: 'always',
+    query: [
+      {
+        name: 'from',
+        schema: { type: 'string', format: 'date-time' },
+        description: 'Inclusive full UTC hour; defaults to 24 hours before to.',
+      },
+      {
+        name: 'to',
+        schema: { type: 'string', format: 'date-time' },
+        description: 'Exclusive full UTC hour; defaults to the current closed hour.',
+      },
+    ],
+    responses: {
+      200: { desc: 'Hourly product statistics', type: 'application/json' },
+      400: { desc: 'Invalid window', type: 'application/json' },
+      401: { desc: 'Missing or invalid existing service API key', type: 'text/plain' },
+      503: { desc: 'Service authentication is not configured', type: 'text/plain' },
+    },
+  },
+  {
     method: 'post',
     path: '/render',
     summary:
       'Render Markdown -> one fully self-contained Slidev HTML deck (CSS+JS+fonts inline, presenter mode, offline)',
-    auth: true,
+    auth: 'service',
     query: RENDER_QUERY,
     body: {
       required: true,
@@ -165,7 +189,7 @@ export const ROUTES = [
     method: 'get',
     path: '/jobs/{id}',
     summary: 'Async job status (queued/running/done/error); includes result link when done',
-    auth: true,
+    auth: 'service',
     responses: {
       200: { desc: 'Job status JSON', type: 'application/json' },
       401: { desc: 'Missing/invalid API key (when auth enabled)', type: 'text/plain' },
@@ -176,7 +200,7 @@ export const ROUTES = [
     method: 'get',
     path: '/jobs/{id}/result',
     summary: 'Async job result — the self-contained HTML deck once the job is done',
-    auth: true,
+    auth: 'service',
     responses: {
       200: { desc: 'Self-contained HTML deck (ETag set, 304 on If-None-Match)', type: 'text/html' },
       401: { desc: 'Missing/invalid API key (when auth enabled)', type: 'text/plain' },
@@ -239,7 +263,9 @@ export function buildOpenApi(
         content: r.body.content,
       }
     }
-    if (authEnabled && r.auth) op.security = [{ apiKey: [] }, { bearerAuth: [] }]
+    if ((authEnabled && r.auth === 'service') || r.auth === 'always') {
+      op.security = [{ apiKey: [] }, { bearerAuth: [] }]
+    }
     for (const [code, res] of Object.entries(r.responses)) {
       op.responses[code] = {
         description: res.desc,
@@ -260,7 +286,7 @@ export function buildOpenApi(
     servers: [{ url: '/' }],
     paths,
   }
-  if (authEnabled) {
+  if (authEnabled || ROUTES.some((route) => route.auth === 'always')) {
     doc.components = {
       securitySchemes: {
         bearerAuth: { type: 'http', scheme: 'bearer' },

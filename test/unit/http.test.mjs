@@ -11,12 +11,14 @@ import { createLogger } from '../../src/logger.mjs'
 
 const ENV = [
   'SLIDEKIT_API_KEYS',
+  'SLIDEKIT_ANALYTICS_STATE_PATH',
   'SLIDEKIT_RATE_LIMIT_MAX',
   'SLIDEKIT_MAX_BODY_BYTES',
   'SLIDEKIT_REQUIRE_AUTH_ALL',
   'SLIDEKIT_CORS_ORIGIN',
   'SLIDEKIT_COMPRESSION',
 ]
+let appNumber = 0
 
 // Raw GET that does NOT auto-decompress (unlike fetch), so we can assert encoding.
 function rawGet(base, path, headers) {
@@ -43,6 +45,7 @@ async function withApp(env, fn) {
     saved[k] = process.env[k]
     process.env[k] = v
   }
+  process.env.SLIDEKIT_ANALYTICS_STATE_PATH = `/tmp/slidekit-stats-test-${process.pid}-${appNumber++}.json`
   const app = createApp(loadConfig(), createLogger({ level: 'error' }))
   await new Promise((r) => app.server.listen(0, '127.0.0.1', r))
   const base = `http://127.0.0.1:${app.server.address().port}`
@@ -51,6 +54,8 @@ async function withApp(env, fn) {
   } finally {
     app.server.close()
     app.limiter.stop?.()
+    app.jobs.stop?.()
+    await app.stats.flush()
     for (const k of ENV) {
       if (saved[k] === undefined) delete process.env[k]
       else process.env[k] = saved[k]
@@ -138,13 +143,43 @@ test('every response carries an X-Request-Id', async () => {
   await withApp({}, async (_app, base) => {
     const r = await fetch(`${base}/health`)
     assert.ok(r.headers.get('x-request-id'), 'x-request-id present')
+    assert.match(r.headers.get('traceparent') || '', /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/)
+  })
+})
+
+test('build statistics reuse the service API key and return closed hourly buckets', async () => {
+  await withApp({ SLIDEKIT_API_KEYS: 'existing-key' }, async (_app, base) => {
+    const url = `${base}/v1/stats/builds?from=2026-07-18T05:00:00Z&to=2026-07-18T06:00:00Z`
+    assert.equal((await fetch(url)).status, 401)
+    const response = await fetch(url, { headers: { authorization: 'Bearer existing-key' } })
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.service.name, 'slidekit')
+    assert.equal(body.bucket, 'hour')
+    assert.equal(body.rows.length, 1)
+    assert.deepEqual(Object.keys(body.rows[0]).sort(), [
+      'builds',
+      'cache',
+      'end',
+      'jobs',
+      'renders',
+      'start',
+    ])
+  })
+})
+
+test('build statistics fail closed when service authentication is disabled', async () => {
+  await withApp({}, async (_app, base) => {
+    assert.equal((await fetch(`${base}/v1/stats/builds`)).status, 503)
   })
 })
 
 test('/health is public; /ready flips to 503 while draining', async () => {
   await withApp({ SLIDEKIT_API_KEYS: 'k', SLIDEKIT_REQUIRE_AUTH_ALL: '1' }, async (app, base) => {
     assert.equal((await fetch(`${base}/health`)).status, 200)
-    assert.equal((await fetch(`${base}/ready`)).status, 200)
+    const ready = await fetch(`${base}/ready`)
+    assert.equal(ready.status, 200)
+    assert.equal((await ready.json()).version, '1.3.0')
     app.state.draining = true
     assert.equal((await fetch(`${base}/ready`)).status, 503)
   })

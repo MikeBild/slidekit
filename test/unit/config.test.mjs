@@ -6,6 +6,7 @@ const CLEAR = [
   'PORT',
   'HOST',
   'SLIDEKIT_API_KEYS',
+  'SLIDEKIT_ANALYTICS_STATE_PATH',
   'SLIDEKIT_REQUIRE_AUTH_ALL',
   'SLIDEKIT_RATE_LIMIT_MAX',
 ]
@@ -21,6 +22,7 @@ test('returns frozen defaults', () => {
   assert.equal(c.defaultTheme, 'neutral')
   assert.equal(c.rateLimitMax, 30)
   assert.deepEqual(c.apiKeys, [])
+  assert.match(c.analyticsStatePath, /slidekit\/analytics\.json$/)
   assert.equal(c.requireAuthAll, false)
   assert.ok(Object.isFrozen(c))
 })

@@ -51,11 +51,14 @@ docker run --rm -p 4030:4030 -e SLIDEKIT_API_KEYS=$KEYS slidekit
 
 ```bash
 npm run build:binary          # → dist/slidekit-deck  (embeds the runtime; no Docker)
+./dist/slidekit-deck --version
 PORT=4030 ./dist/slidekit-deck
 ```
 
 First start extracts the embedded runtime to `~/.cache/slidekit-deck/<hash>`
-(content-hashed, auto-invalidating). The binary is platform-specific — build it
+(content-hashed, auto-invalidating). Builds download and checksum the pinned
+official Node.js 22.23.1 runtime, avoiding dependencies on a local Homebrew or
+system Node installation. The binary is platform-specific — build it
 on the OS/arch you run on.
 
 Prebuilt binaries for macOS (arm64) and Linux (x64/arm64) are attached to each
@@ -72,8 +75,9 @@ Prebuilt binaries for macOS (arm64) and Linux (x64/arm64) are attached to each
 | `GET`  | `/themes`                          | JSON list of theme names                      |
 | `GET`  | `/openapi.json`                    | OpenAPI 3.1 spec (generated)                  |
 | `GET`  | `/health`                          | Liveness probe                                |
-| `GET`  | `/ready`                           | Readiness probe (503 while draining)          |
+| `GET`  | `/ready`                           | Readiness and exact service version           |
 | `GET`  | `/metrics`                         | Prometheus metrics (requests, builds, cache)  |
+| `GET`  | `/v1/stats/builds`                 | Authenticated hourly product statistics       |
 | `GET`  | `/jobs/{id}` · `/jobs/{id}/result` | Async job status + result deck                |
 | `GET`  | `/llms.txt` · `/llms-full.txt`     | LLM docs ([llmstxt.org](https://llmstxt.org)) |
 
@@ -103,6 +107,12 @@ renders are served from an in-memory **cache**, and text/JSON responses are
 
 When `SLIDEKIT_API_KEYS` is set, `/render` and `/jobs/*` require a valid key via
 `Authorization: Bearer <key>` or `X-API-Key: <key>`.
+
+`GET /v1/stats/builds?from=<UTC-hour>&to=<UTC-hour>` reuses the same service key
+and returns bounded hourly build, render, cache and async-job statistics. It is
+unavailable when service authentication is not configured. Aggregate state is
+kept under the platform state directory and never contains Markdown, deck names,
+URLs, job IDs or credentials.
 
 ## Configuration
 
