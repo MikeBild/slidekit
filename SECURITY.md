@@ -1,5 +1,12 @@
 # Security Policy
 
+> [!IMPORTANT]
+> This repository is archived and receives no standalone security releases.
+> The maintained successor is [ContentKit](https://github.com/MikeBild/contentkit).
+> Report issues affecting the integrated deck implementation against ContentKit
+> using its security policy. The guidance below describes only the historical
+> SlideKit v1.3.0 boundary.
+
 ## Trust model — read this first
 
 `POST /render` runs a **real Slidev/Vite build** on the uploaded Markdown. A
@@ -38,8 +45,8 @@ Therefore the built-in controls below are **defense-in-depth, not a sandbox**.
 
 ## Supported versions
 
-The latest release on the default branch is supported. There are no separate
-maintenance branches yet.
+No standalone SlideKit version is supported. The last standalone artifact was
+v1.3.0; migrate to ContentKit v1.18.0 or newer.
 
 ## Reporting a vulnerability
 

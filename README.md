@@ -1,5 +1,20 @@
 # slidekit
 
+> [!IMPORTANT]
+> **Archived on 2026-07-20.** SlideKit was merged into
+> [ContentKit v1.18.0](https://github.com/MikeBild/contentkit/releases/tag/v1.18.0)
+> and is no longer deployed or maintained as a standalone service. Use
+> ContentKit's first-class semantic decks, deterministic information
+> architecture and narrative, SVG/PNG components, self-contained Slidev
+> rendering, previews, releases and site-scoped telemetry. Start with the
+> [migration guide](https://github.com/MikeBild/contentkit/blob/main/docs/SLIDEKIT_MIGRATION.md)
+> and [deck reference](https://github.com/MikeBild/contentkit/blob/main/docs/SLIDE_DECKS.md).
+
+The repository remains available as the immutable history of the former
+standalone implementation. Release `v1.3.0` is the final standalone release;
+do not start new deployments from it. See [ARCHIVED.md](./ARCHIVED.md) for the
+cutover map and operational status.
+
 [![CI](https://github.com/mikebild/slidekit/actions/workflows/ci.yml/badge.svg)](https://github.com/mikebild/slidekit/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-14b8a6.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D20.12-444.svg)
@@ -150,8 +165,8 @@ Deployment guide: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md).
 
 ## Contributing
 
-Contributions welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) and the
-[Code of Conduct](./CODE_OF_CONDUCT.md).
+This repository is read-only. Continue deck work in
+[ContentKit](https://github.com/MikeBild/contentkit).
 
 ## License
 

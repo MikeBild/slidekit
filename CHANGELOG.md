@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Archived
+
+- Standalone development and production deployment ended on 2026-07-20.
+- Semantic deck authoring, deterministic narrative/information architecture,
+  SVG/PNG composition, Slidev rendering and bounded telemetry moved to
+  [ContentKit v1.18.0](https://github.com/MikeBild/contentkit/releases/tag/v1.18.0).
+- `v1.3.0` remains the final standalone release. Migration details are in
+  [ARCHIVED.md](./ARCHIVED.md).
+
 ## [1.3.0] - 2026-07-18
 
 - Binary builds now embed a checksum-verified official Node.js 22.23.1 runtime,
