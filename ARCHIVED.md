@@ -20,14 +20,14 @@ Prometheus metrics and site-scoped product statistics.
 
 ## API mapping
 
-| Historical SlideKit | ContentKit successor |
-|---|---|
-| `POST /render` | `POST /v1/sites/{site}/decks/compile` |
-| `POST /render?async=1` and `/jobs/*` | `async: true` and `/v1/sites/{site}/deck-jobs/*` |
-| `GET /themes` | `GET /v1/deck-themes` |
-| `GET /v1/stats/builds` | `GET /v1/sites/{site}/stats/decks` |
-| Standalone HTML response | Headless compile result or immutable `/{locale}/slides/{slug}/` release |
-| Standalone service keys | Site-scoped ContentKit grants including `deck:render` |
+| Historical SlideKit                  | ContentKit successor                                                    |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `POST /render`                       | `POST /v1/sites/{site}/decks/compile`                                   |
+| `POST /render?async=1` and `/jobs/*` | `async: true` and `/v1/sites/{site}/deck-jobs/*`                        |
+| `GET /themes`                        | `GET /v1/deck-themes`                                                   |
+| `GET /v1/stats/builds`               | `GET /v1/sites/{site}/stats/decks`                                      |
+| Standalone HTML response             | Headless compile result or immutable `/{locale}/slides/{slug}/` release |
+| Standalone service keys              | Site-scoped ContentKit grants including `deck:render`                   |
 
 Use ContentKit's migration CLI for existing Markdown:
 
